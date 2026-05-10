@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick, afterUpdate } from 'svelte';
+  import { onMount, onDestroy, tick, afterUpdate, get } from 'svelte';
   import { store } from '../stores';
   import type { Shape, Point, StickyColor, ToolType } from '../types';
   import { STICKY_COLORS, DEFAULT_STYLE } from '../types';
@@ -276,8 +276,8 @@
     isPanning = true;
     panStartX = e.clientX;
     panStartY = e.clientY;
-    panStartPanX = $panX;
-    panStartPanY = $panY;
+    panStartPanX = get(store.panX);
+    panStartPanY = get(store.panY);
   }
 
   function broadcastCursorPosition(e: MouseEvent) {

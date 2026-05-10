@@ -1,6 +1,6 @@
 <script lang="ts">
   import { store } from '../stores';
-  import { getBounds, getCenter } from '../utils';
+  import { getVisualBounds, getCenter } from '../utils';
   import type { Shape } from '../types';
 
   let $shapes: Shape[];
@@ -23,7 +23,7 @@
   let startRotation = 0;
 
   $: selectedShapes = $shapes.filter(s => $selectedIds.includes(s.id));
-  $: bounds = selectedShapes.length > 0 ? getBounds(selectedShapes) : null;
+  $: bounds = selectedShapes.length > 0 ? getVisualBounds(selectedShapes) : null;
   $: center = bounds ? getCenter({ ...bounds, rotation: 0 } as any) : null;
   $: screenX = bounds ? $panX + bounds.x * $zoom : 0;
   $: screenY = bounds ? $panY + bounds.y * $zoom : 0;
