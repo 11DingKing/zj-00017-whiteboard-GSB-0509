@@ -42,6 +42,59 @@ export function getBounds(shapes: Shape[]): Bounds {
   };
 }
 
+export function getRotatedBounds(shape: Shape): Bounds {
+  if (shape.rotation === 0) {
+    return { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
+  }
+  const center = getCenter(shape);
+  const angle = shape.rotation * Math.PI / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const corners = [
+    { x: shape.x, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y + shape.height },
+    { x: shape.x, y: shape.y + shape.height }
+  ];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const corner of corners) {
+    const dx = corner.x - center.x;
+    const dy = corner.y - center.y;
+    const rotatedX = center.x + dx * cos - dy * sin;
+    const rotatedY = center.y + dx * sin + dy * cos;
+    minX = Math.min(minX, rotatedX);
+    minY = Math.min(minY, rotatedY);
+    maxX = Math.max(maxX, rotatedX);
+    maxY = Math.max(maxY, rotatedY);
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+}
+
+export function getVisualBounds(shapes: Shape[]): Bounds {
+  if (shapes.length === 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const shape of shapes) {
+    const b = getRotatedBounds(shape);
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width);
+    maxY = Math.max(maxY, b.y + b.height);
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+}
+
 export function pointInBounds(point: Point, bounds: Bounds, padding: number = 0): boolean {
   return (
     point.x >= bounds.x - padding &&
