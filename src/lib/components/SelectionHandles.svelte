@@ -1,7 +1,7 @@
 <script lang="ts">
   import { store } from '../stores';
-  import { getBounds, getCenter } from '../utils';
-  import type { Shape } from '../types';
+  import { getCenter } from '../utils';
+  import type { Shape, Point } from '../types';
 
   let $shapes: Shape[];
   let $selectedIds: string[];
@@ -22,8 +22,35 @@
   let startShapes: Array<{ id: string; x: number; y: number; width: number; height: number }> = [];
   let startRotation = 0;
 
+  function getSelectionBounds(shapes: Shape[]): { x: number; y: number; width: number; height: number } | null {
+    if (shapes.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of shapes) {
+      const points = (shape as any).points as Point[] | undefined;
+      if (points && points.length > 0) {
+        for (const p of points) {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        }
+      } else {
+        minX = Math.min(minX, shape.x);
+        minY = Math.min(minY, shape.y);
+        maxX = Math.max(maxX, shape.x + shape.width);
+        maxY = Math.max(maxY, shape.y + shape.height);
+      }
+    }
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX || 1,
+      height: maxY - minY || 1
+    };
+  }
+
   $: selectedShapes = $shapes.filter(s => $selectedIds.includes(s.id));
-  $: bounds = selectedShapes.length > 0 ? getBounds(selectedShapes) : null;
+  $: bounds = getSelectionBounds(selectedShapes);
   $: center = bounds ? getCenter({ ...bounds, rotation: 0 } as any) : null;
   $: screenX = bounds ? $panX + bounds.x * $zoom : 0;
   $: screenY = bounds ? $panY + bounds.y * $zoom : 0;

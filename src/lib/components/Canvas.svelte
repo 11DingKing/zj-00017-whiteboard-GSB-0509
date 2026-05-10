@@ -199,6 +199,10 @@
 
   function handleMouseUp(e: MouseEvent) {
     if (isPanning) {
+      const dx = e.clientX - panStartX;
+      const dy = e.clientY - panStartY;
+      store.panX.set(panStartPanX + dx);
+      store.panY.set(panStartPanY + dy);
       isPanning = false;
       return;
     }
