@@ -4,6 +4,7 @@
   import type { Shape, Point, StickyColor, ToolType } from '../types';
   import { STICKY_COLORS, DEFAULT_STYLE } from '../types';
   import { snapToGrid, clamp, getCenter, pointInRotatedBounds, pointInBounds, pointOnLine, deepClone, generateId } from '../utils';
+import { get } from 'svelte/store';
   import SelectionHandles from './SelectionHandles.svelte';
 
   let canvas: HTMLCanvasElement;
@@ -276,8 +277,8 @@
     isPanning = true;
     panStartX = e.clientX;
     panStartY = e.clientY;
-    panStartPanX = $panX;
-    panStartPanY = $panY;
+    panStartPanX = get(store.panX);
+    panStartPanY = get(store.panY);
   }
 
   function broadcastCursorPosition(e: MouseEvent) {

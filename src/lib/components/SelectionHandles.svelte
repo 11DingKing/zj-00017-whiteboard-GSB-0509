@@ -1,7 +1,7 @@
 <script lang="ts">
   import { store } from '../stores';
   import { getBounds, getCenter } from '../utils';
-  import type { Shape } from '../types';
+  import type { Shape, Point, Bounds } from '../types';
 
   let $shapes: Shape[];
   let $selectedIds: string[];
@@ -15,6 +15,47 @@
   store.panX.subscribe(v => $panX = v);
   store.panY.subscribe(v => $panY = v);
 
+  function getRotatedCorners(shape: Shape): Point[] {
+    const center = getCenter(shape);
+    const angle = shape.rotation * Math.PI / 180;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const corners = [
+      { x: shape.x, y: shape.y },
+      { x: shape.x + shape.width, y: shape.y },
+      { x: shape.x + shape.width, y: shape.y + shape.height },
+      { x: shape.x, y: shape.y + shape.height }
+    ];
+    return corners.map(corner => {
+      const dx = corner.x - center.x;
+      const dy = corner.y - center.y;
+      return {
+        x: center.x + dx * cos - dy * sin,
+        y: center.y + dx * sin + dy * cos
+      };
+    });
+  }
+
+  function getSelectionBounds(shapes: Shape[]): Bounds | null {
+    if (shapes.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of shapes) {
+      const corners = getRotatedCorners(shape);
+      for (const corner of corners) {
+        minX = Math.min(minX, corner.x);
+        minY = Math.min(minY, corner.y);
+        maxX = Math.max(maxX, corner.x);
+        maxY = Math.max(maxY, corner.y);
+      }
+    }
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+  }
+
   let isDragging = false;
   let dragHandle: string | null = null;
   let startPoint = { x: 0, y: 0 };
@@ -23,7 +64,7 @@
   let startRotation = 0;
 
   $: selectedShapes = $shapes.filter(s => $selectedIds.includes(s.id));
-  $: bounds = selectedShapes.length > 0 ? getBounds(selectedShapes) : null;
+  $: bounds = getSelectionBounds(selectedShapes);
   $: center = bounds ? getCenter({ ...bounds, rotation: 0 } as any) : null;
   $: screenX = bounds ? $panX + bounds.x * $zoom : 0;
   $: screenY = bounds ? $panY + bounds.y * $zoom : 0;

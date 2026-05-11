@@ -1,21 +1,93 @@
-import type { Shape, Project, Point } from './types';
-import { getBounds } from './utils';
+import type { Shape, Project, Point } from "./types";
+import { getBounds, getCenter } from "./utils";
 
-export function exportPNG(shapes: Shape[], onlySelection: boolean = false): Promise<string> {
+function getRotatedBounds(shape: Shape): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  if (shape.rotation === 0) {
+    return {
+      minX: shape.x,
+      minY: shape.y,
+      maxX: shape.x + shape.width,
+      maxY: shape.y + shape.height,
+    };
+  }
+  const center = getCenter(shape);
+  const angle = (shape.rotation * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const corners = [
+    { x: shape.x, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y + shape.height },
+    { x: shape.x, y: shape.y + shape.height },
+  ];
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const corner of corners) {
+    const dx = corner.x - center.x;
+    const dy = corner.y - center.y;
+    const rx = center.x + dx * cos - dy * sin;
+    const ry = center.y + dx * sin + dy * cos;
+    minX = Math.min(minX, rx);
+    minY = Math.min(minY, ry);
+    maxX = Math.max(maxX, rx);
+    maxY = Math.max(maxY, ry);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function getBoundsWithRotation(shapes: Shape[]): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  if (shapes.length === 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const shape of shapes) {
+    const b = getRotatedBounds(shape);
+    minX = Math.min(minX, b.minX);
+    minY = Math.min(minY, b.minY);
+    maxX = Math.max(maxX, b.maxX);
+    maxY = Math.max(maxY, b.maxY);
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+export function exportPNG(
+  shapes: Shape[],
+  onlySelection: boolean = false,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return reject(new Error('Canvas not supported'));
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return reject(new Error("Canvas not supported"));
 
-    const exportShapes = onlySelection ? shapes : shapes;
-    const bounds = getBounds(exportShapes);
+    const exportShapes = shapes;
+    const bounds = getBoundsWithRotation(exportShapes);
     const padding = 20;
     const scale = 2;
     canvas.width = (bounds.width + padding * 2) * scale;
     canvas.height = (bounds.height + padding * 2) * scale;
     ctx.scale(scale, scale);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width / scale, canvas.height / scale);
     ctx.save();
     ctx.translate(-bounds.x + padding, -bounds.y + padding);
@@ -26,11 +98,14 @@ export function exportPNG(shapes: Shape[], onlySelection: boolean = false): Prom
     }
 
     ctx.restore();
-    resolve(canvas.toDataURL('image/png'));
+    resolve(canvas.toDataURL("image/png"));
   });
 }
 
-export function exportSVG(shapes: Shape[], onlySelection: boolean = false): string {
+export function exportSVG(
+  shapes: Shape[],
+  onlySelection: boolean = false,
+): string {
   const exportShapes = onlySelection ? shapes : shapes;
   const bounds = getBounds(exportShapes);
   const padding = 20;
@@ -49,17 +124,25 @@ export function exportSVG(shapes: Shape[], onlySelection: boolean = false): stri
 }
 
 export function exportJSON(project: Project): string {
-  const data = JSON.stringify(project, (key, value) => {
-    if (key === 'image') return undefined;
-    return value;
-  }, 2);
+  const data = JSON.stringify(
+    project,
+    (key, value) => {
+      if (key === "image") return undefined;
+      return value;
+    },
+    2,
+  );
   return data;
 }
 
-export function downloadFile(content: string, filename: string, mimeType: string) {
+export function downloadFile(
+  content: string,
+  filename: string,
+  mimeType: string,
+) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
@@ -71,9 +154,12 @@ export function downloadFile(content: string, filename: string, mimeType: string
 function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {
   ctx.save();
   if (shape.rotation !== 0) {
-    const center = { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 };
+    const center = {
+      x: shape.x + shape.width / 2,
+      y: shape.y + shape.height / 2,
+    };
     ctx.translate(center.x, center.y);
-    ctx.rotate(shape.rotation * Math.PI / 180);
+    ctx.rotate((shape.rotation * Math.PI) / 180);
     ctx.translate(-center.x, -center.y);
   }
   ctx.lineWidth = shape.style.strokeWidth;
@@ -84,28 +170,28 @@ function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {
   }
 
   switch (shape.type) {
-    case 'rectangle':
+    case "rectangle":
       drawRect(ctx, shape);
       break;
-    case 'ellipse':
+    case "ellipse":
       drawEllipse(ctx, shape);
       break;
-    case 'line':
+    case "line":
       drawLine(ctx, shape);
       break;
-    case 'arrow':
+    case "arrow":
       drawArrow(ctx, shape);
       break;
-    case 'pen':
+    case "pen":
       drawPen(ctx, shape);
       break;
-    case 'text':
+    case "text":
       drawText(ctx, shape);
       break;
-    case 'sticky':
+    case "sticky":
       drawSticky(ctx, shape);
       break;
-    case 'image':
+    case "image":
       drawImage(ctx, shape);
       break;
   }
@@ -113,34 +199,64 @@ function drawShape(ctx: CanvasRenderingContext2D, shape: Shape) {
 }
 
 function drawRect(ctx: CanvasRenderingContext2D, shape: Shape) {
-  const r = Math.min(shape.style.cornerRadius, shape.width / 2, shape.height / 2);
+  const r = Math.min(
+    shape.style.cornerRadius,
+    shape.width / 2,
+    shape.height / 2,
+  );
   ctx.beginPath();
   if (r > 0) {
     ctx.moveTo(shape.x + r, shape.y);
     ctx.lineTo(shape.x + shape.width - r, shape.y);
-    ctx.quadraticCurveTo(shape.x + shape.width, shape.y, shape.x + shape.width, shape.y + r);
+    ctx.quadraticCurveTo(
+      shape.x + shape.width,
+      shape.y,
+      shape.x + shape.width,
+      shape.y + r,
+    );
     ctx.lineTo(shape.x + shape.width, shape.y + shape.height - r);
-    ctx.quadraticCurveTo(shape.x + shape.width, shape.y + shape.height, shape.x + shape.width - r, shape.y + shape.height);
+    ctx.quadraticCurveTo(
+      shape.x + shape.width,
+      shape.y + shape.height,
+      shape.x + shape.width - r,
+      shape.y + shape.height,
+    );
     ctx.lineTo(shape.x + r, shape.y + shape.height);
-    ctx.quadraticCurveTo(shape.x, shape.y + shape.height, shape.x, shape.y + shape.height - r);
+    ctx.quadraticCurveTo(
+      shape.x,
+      shape.y + shape.height,
+      shape.x,
+      shape.y + shape.height - r,
+    );
     ctx.lineTo(shape.x, shape.y + r);
     ctx.quadraticCurveTo(shape.x, shape.y, shape.x + r, shape.y);
   } else {
     ctx.rect(shape.x, shape.y, shape.width, shape.height);
   }
-  if (shape.style.fillColor !== 'transparent') ctx.fill();
+  if (shape.style.fillColor !== "transparent") ctx.fill();
   if (shape.style.strokeWidth > 0) ctx.stroke();
 }
 
 function drawEllipse(ctx: CanvasRenderingContext2D, shape: Shape) {
   ctx.beginPath();
-  ctx.ellipse(shape.x + shape.width / 2, shape.y + shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
-  if (shape.style.fillColor !== 'transparent') ctx.fill();
+  ctx.ellipse(
+    shape.x + shape.width / 2,
+    shape.y + shape.height / 2,
+    shape.width / 2,
+    shape.height / 2,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  if (shape.style.fillColor !== "transparent") ctx.fill();
   if (shape.style.strokeWidth > 0) ctx.stroke();
 }
 
 function drawLine(ctx: CanvasRenderingContext2D, shape: Shape) {
-  const points = (shape as any).points || [{ x: shape.x, y: shape.y }, { x: shape.x + shape.width, y: shape.y + shape.height }];
+  const points = (shape as any).points || [
+    { x: shape.x, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y + shape.height },
+  ];
   if (points.length < 2) return;
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
@@ -149,7 +265,10 @@ function drawLine(ctx: CanvasRenderingContext2D, shape: Shape) {
 }
 
 function drawArrow(ctx: CanvasRenderingContext2D, shape: Shape) {
-  const points = (shape as any).points || [{ x: shape.x, y: shape.y }, { x: shape.x + shape.width, y: shape.y + shape.height }];
+  const points = (shape as any).points || [
+    { x: shape.x, y: shape.y },
+    { x: shape.x + shape.width, y: shape.y + shape.height },
+  ];
   if (points.length < 2) return;
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
@@ -162,17 +281,23 @@ function drawArrow(ctx: CanvasRenderingContext2D, shape: Shape) {
   const headLength = 15;
   ctx.beginPath();
   ctx.moveTo(last.x, last.y);
-  ctx.lineTo(last.x - headLength * Math.cos(angle - Math.PI / 6), last.y - headLength * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(
+    last.x - headLength * Math.cos(angle - Math.PI / 6),
+    last.y - headLength * Math.sin(angle - Math.PI / 6),
+  );
   ctx.moveTo(last.x, last.y);
-  ctx.lineTo(last.x - headLength * Math.cos(angle + Math.PI / 6), last.y - headLength * Math.sin(angle + Math.PI / 6));
+  ctx.lineTo(
+    last.x - headLength * Math.cos(angle + Math.PI / 6),
+    last.y - headLength * Math.sin(angle + Math.PI / 6),
+  );
   ctx.stroke();
 }
 
 function drawPen(ctx: CanvasRenderingContext2D, shape: Shape) {
   const points = (shape as any).points || [];
   if (points.length < 2) return;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) {
@@ -186,16 +311,16 @@ function drawPen(ctx: CanvasRenderingContext2D, shape: Shape) {
 }
 
 function drawText(ctx: CanvasRenderingContext2D, shape: Shape) {
-  const text = (shape as any).text || '';
+  const text = (shape as any).text || "";
   if (!text) return;
   ctx.font = `${shape.style.fontSize}px system-ui, sans-serif`;
   ctx.fillStyle = shape.style.textColor;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = "top";
   ctx.textAlign = shape.style.textAlign;
   let x = shape.x;
-  if (shape.style.textAlign === 'center') x = shape.x + shape.width / 2;
-  if (shape.style.textAlign === 'right') x = shape.x + shape.width;
-  const lines = text.split('\n');
+  if (shape.style.textAlign === "center") x = shape.x + shape.width / 2;
+  if (shape.style.textAlign === "right") x = shape.x + shape.width;
+  const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     ctx.fillText(lines[i], x, shape.y + i * (shape.style.fontSize * 1.2));
   }
@@ -204,23 +329,23 @@ function drawText(ctx: CanvasRenderingContext2D, shape: Shape) {
 function drawSticky(ctx: CanvasRenderingContext2D, shape: Shape) {
   ctx.fillStyle = shape.style.backgroundColor;
   ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-  ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+  ctx.strokeStyle = "rgba(0,0,0,0.1)";
   ctx.lineWidth = 1;
   ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
 
-  const text = (shape as any).text || '';
+  const text = (shape as any).text || "";
   if (!text) return;
   ctx.font = `${shape.style.fontSize}px system-ui, sans-serif`;
-  ctx.fillStyle = '#1e1e1e';
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
+  ctx.fillStyle = "#1e1e1e";
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
   const padding = 10;
   const maxWidth = shape.width - padding * 2;
-  const words = text.split(' ');
+  const words = text.split(" ");
   const lines: string[] = [];
-  let current = '';
+  let current = "";
   for (const word of words) {
-    const test = current ? current + ' ' + word : word;
+    const test = current ? current + " " + word : word;
     const metrics = ctx.measureText(test);
     if (metrics.width > maxWidth && current) {
       lines.push(current);
@@ -231,7 +356,11 @@ function drawSticky(ctx: CanvasRenderingContext2D, shape: Shape) {
   }
   if (current) lines.push(current);
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], shape.x + padding, shape.y + padding + i * (shape.style.fontSize * 1.2));
+    ctx.fillText(
+      lines[i],
+      shape.x + padding,
+      shape.y + padding + i * (shape.style.fontSize * 1.2),
+    );
   }
 }
 
@@ -243,70 +372,94 @@ function drawImage(ctx: CanvasRenderingContext2D, shape: Shape) {
 }
 
 function shapeToSVG(shape: Shape): string {
-  let transform = '';
+  let transform = "";
   if (shape.rotation !== 0) {
     const cx = shape.x + shape.width / 2;
     const cy = shape.y + shape.height / 2;
     transform = ` transform="rotate(${shape.rotation} ${cx} ${cy})"`;
   }
   const stroke = shape.style.strokeColor;
-  const fill = shape.style.fillColor === 'transparent' ? 'none' : shape.style.fillColor;
+  const fill =
+    shape.style.fillColor === "transparent" ? "none" : shape.style.fillColor;
   const strokeWidth = shape.style.strokeWidth;
-  const strokeDasharray = shape.style.strokeDash.length > 0 ? ` stroke-dasharray="${shape.style.strokeDash.join(' ')}"` : '';
+  const strokeDasharray =
+    shape.style.strokeDash.length > 0
+      ? ` stroke-dasharray="${shape.style.strokeDash.join(" ")}"`
+      : "";
 
   switch (shape.type) {
-    case 'rectangle':
-      const r = Math.min(shape.style.cornerRadius, shape.width / 2, shape.height / 2);
+    case "rectangle":
+      const r = Math.min(
+        shape.style.cornerRadius,
+        shape.width / 2,
+        shape.height / 2,
+      );
       return `<rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" rx="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${strokeDasharray}${transform}/>`;
 
-    case 'ellipse':
+    case "ellipse":
       return `<ellipse cx="${shape.x + shape.width / 2}" cy="${shape.y + shape.height / 2}" rx="${shape.width / 2}" ry="${shape.height / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"${strokeDasharray}${transform}/>`;
 
-    case 'line':
-    case 'arrow': {
-      const points = (shape as any).points || [{ x: shape.x, y: shape.y }, { x: shape.x + shape.width, y: shape.y + shape.height }];
-      const d = points.map((p: Point, i: number) => (i === 0 ? 'M' : 'L') + `${p.x} ${p.y}`).join(' ');
+    case "line":
+    case "arrow": {
+      const points = (shape as any).points || [
+        { x: shape.x, y: shape.y },
+        { x: shape.x + shape.width, y: shape.y + shape.height },
+      ];
+      const d = points
+        .map((p: Point, i: number) => (i === 0 ? "M" : "L") + `${p.x} ${p.y}`)
+        .join(" ");
       let svg = `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"${strokeDasharray}${transform}/>`;
-      if (shape.type === 'arrow' && points.length >= 2) {
+      if (shape.type === "arrow" && points.length >= 2) {
         const last = points[points.length - 1];
         const prev = points[points.length - 2];
         const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
         const len = 15;
-        const p1 = { x: last.x - len * Math.cos(angle - Math.PI / 6), y: last.y - len * Math.sin(angle - Math.PI / 6) };
-        const p2 = { x: last.x - len * Math.cos(angle + Math.PI / 6), y: last.y - len * Math.sin(angle + Math.PI / 6) };
+        const p1 = {
+          x: last.x - len * Math.cos(angle - Math.PI / 6),
+          y: last.y - len * Math.sin(angle - Math.PI / 6),
+        };
+        const p2 = {
+          x: last.x - len * Math.cos(angle + Math.PI / 6),
+          y: last.y - len * Math.sin(angle + Math.PI / 6),
+        };
         svg += `<path d="M${last.x} ${last.y} L${p1.x} ${p1.y} M${last.x} ${last.y} L${p2.x} ${p2.y}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"${transform}/>`;
       }
       return svg;
     }
 
-    case 'pen': {
+    case "pen": {
       const points = (shape as any).points || [];
-      if (points.length < 2) return '';
-      const d = points.map((p: Point, i: number) => (i === 0 ? 'M' : 'L') + `${p.x} ${p.y}`).join(' ');
+      if (points.length < 2) return "";
+      const d = points
+        .map((p: Point, i: number) => (i === 0 ? "M" : "L") + `${p.x} ${p.y}`)
+        .join(" ");
       return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${strokeDasharray}${transform}/>`;
     }
 
-    case 'text': {
-      const text = (shape as any).text || '';
-      if (!text) return '';
+    case "text": {
+      const text = (shape as any).text || "";
+      if (!text) return "";
       let x = shape.x;
-      if (shape.style.textAlign === 'center') x = shape.x + shape.width / 2;
-      if (shape.style.textAlign === 'right') x = shape.x + shape.width;
-      const lines = text.split('\n');
-      return lines.map((line: string, i: number) =>
-        `<text x="${x}" y="${shape.y + (i + 1) * (shape.style.fontSize * 1.2)}" font-family="system-ui, sans-serif" font-size="${shape.style.fontSize}" fill="${shape.style.textColor}" text-anchor="${shape.style.textAlign}"${transform}>${escapeXML(line)}</text>`
-      ).join('');
+      if (shape.style.textAlign === "center") x = shape.x + shape.width / 2;
+      if (shape.style.textAlign === "right") x = shape.x + shape.width;
+      const lines = text.split("\n");
+      return lines
+        .map(
+          (line: string, i: number) =>
+            `<text x="${x}" y="${shape.y + (i + 1) * (shape.style.fontSize * 1.2)}" font-family="system-ui, sans-serif" font-size="${shape.style.fontSize}" fill="${shape.style.textColor}" text-anchor="${shape.style.textAlign}"${transform}>${escapeXML(line)}</text>`,
+        )
+        .join("");
     }
 
-    case 'sticky': {
-      const text = (shape as any).text || '';
+    case "sticky": {
+      const text = (shape as any).text || "";
       const bg = shape.style.backgroundColor;
       let svg = `<rect x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" fill="${bg}" stroke="rgba(0,0,0,0.1)" stroke-width="1"${transform}/>`;
       if (text) {
         const padding = 10;
-        const lines = text.split(' ').reduce((acc: string[], word: string) => {
-          const last = acc[acc.length - 1] || '';
-          const test = last ? last + ' ' + word : word;
+        const lines = text.split(" ").reduce((acc: string[], word: string) => {
+          const last = acc[acc.length - 1] || "";
+          const test = last ? last + " " + word : word;
           if (test.length > 15 && last) {
             acc.push(word);
           } else if (last) {
@@ -323,24 +476,24 @@ function shapeToSVG(shape: Shape): string {
       return svg;
     }
 
-    case 'image': {
+    case "image": {
       const imgShape = shape as any;
       if (imgShape.src) {
         return `<image x="${shape.x}" y="${shape.y}" width="${shape.width}" height="${shape.height}" href="${imgShape.src}"${transform}/>`;
       }
-      return '';
+      return "";
     }
 
     default:
-      return '';
+      return "";
   }
 }
 
 function escapeXML(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
